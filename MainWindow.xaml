@@ -1,44 +1,31 @@
 ﻿<Window x:Class="gombaszedés.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Gombaszedés — Sakkfigurák" Height="520" Width="760">
+        Title="Gombaszedés — Sakkfigurák" Height="520" Width="800">
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="520"/>
+            <ColumnDefinition Width="500"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Chessboard area -->
-        <Border Grid.Column="0" BorderBrush="Black" BorderThickness="1" Padding="4">
-            <UniformGrid Name="BoardGrid" Rows="8" Columns="8" Width="480" Height="480"/>
+        <Border Grid.Column="0" BorderBrush="Black" BorderThickness="2" Padding="6" Background="White">
+            <UniformGrid Name="BoardGrid" Rows="8" Columns="8" Width="460" Height="460"/>
         </Border>
 
-        <!-- Controls -->
-        <StackPanel Grid.Column="1" Margin="12" VerticalAlignment="Top" HorizontalAlignment="Left">
-            <TextBlock Text="Válassz figurát:" FontWeight="Bold" Margin="0,4"/>
-            <ComboBox Name="PieceCombo" Width="180" Margin="0,6">
-                <ComboBoxItem IsSelected="True">Rook</ComboBoxItem>
-                <ComboBoxItem>Bishop</ComboBoxItem>
-                <ComboBoxItem>Queen</ComboBoxItem>
-                <ComboBoxItem>Knight</ComboBoxItem>
-            </ComboBox>
+        <Grid Grid.Column="1" Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-            <Button Name="NewGameButton" Content="Új játék" Width="180" Margin="0,12" Click="NewGameButton_Click"/>
+            <Button Name="NewGameButton" Content="Új játék" Width="260" Height="64" Margin="0,6" HorizontalAlignment="Center" Click="NewGameButton_Click"/>
 
-            <TextBlock Name="StatusText" Text="Click Új játék to start" Margin="0,10" FontSize="14"/>
+            <TextBlock Name="StatusText" Grid.Row="1" Margin="0,12" FontSize="16" HorizontalAlignment="Center"/>
 
-            <StackPanel Orientation="Horizontal" Margin="0,12">
-                <Image Name="ResultImage" Width="64" Height="64" Margin="0,0,8,0"/>
-                <StackPanel>
-                    <TextBlock Text="Eredmény" FontWeight="Bold"/>
-                    <TextBlock Text="Helyes: mosoly / Hibás: szomorú" FontSize="12"/>
-                </StackPanel>
+            <StackPanel Grid.Row="2" Margin="0,20" HorizontalAlignment="Center">
+                <Image Name="ResultImage" Width="220" Height="220" Stretch="Uniform" />
             </StackPanel>
-
-            <TextBlock Text="Instrukció:" Margin="0,12,0,0" FontWeight="Bold"/>
-            <TextBlock TextWrapping="Wrap" Width="200" FontSize="12">
-                Kattints mindig a soron következő gombára. Ha helyes, mosoly jelenik meg, különben szomorú.
-            </TextBlock>
-        </StackPanel>
+        </Grid>
     </Grid>
 </Window>

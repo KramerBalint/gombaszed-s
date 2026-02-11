@@ -17,19 +17,34 @@ namespace gombaszedés
         private const int BoardSize = 8;
         private const int MushroomsCount = 5;
         private readonly Random _rnd = new();
-        // sequence positions as single ints r*8 + c
         private List<int> _sequence = new();
         private Dictionary<int, int> _posToIndex = new();
         private int _currentIndex = 0;
+        private int _bastyaPos = -1;
 
-        // images (pack URIs for Resource images placed in Images folder)
-        private readonly BitmapImage _mushroomImg = new(new Uri("pack://application:,,,/Images/mushroom.png"));
-        private readonly BitmapImage _smileImg = new(new Uri("pack://application:,,,/Images/smile.png"));
-        private readonly BitmapImage _sadImg = new(new Uri("pack://application:,,,/Images/sad.png"));
+        private BitmapImage _mushroomImg;
+        private BitmapImage _smileImg;
+        private BitmapImage _sadImg;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name;
+                _mushroomImg = new BitmapImage(new Uri($"pack://application:,,,/{asm};component/Images/mushroom.png", UriKind.Absolute));
+                _smileImg = new BitmapImage(new Uri($"pack://application:,,,/{asm};component/Images/smile.png", UriKind.Absolute));
+                _sadImg = new BitmapImage(new Uri($"pack://application:,,,/{asm};component/Images/sad.png", UriKind.Absolute));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Hiba képek betöltésénél: {ex.Message}", "Hiba", MessageBoxButton.OK, MessageBoxImage.Error);
+                _mushroomImg = new BitmapImage();
+                _smileImg = new BitmapImage();
+                _sadImg = new BitmapImage();
+            }
+
             BuildEmptyBoard();
         }
 
@@ -43,7 +58,7 @@ namespace gombaszedés
                     var btn = new Button
                     {
                         Tag = r * BoardSize + c,
-                        Background = ((r + c) % 2 == 0) ? Brushes.Beige : Brushes.SaddleBrown,
+                        Background = ((r + c) % 2 == 0) ? Brushes.White : Brushes.Gray,
                         BorderBrush = Brushes.Black,
                         Padding = new Thickness(0),
                     };
@@ -58,40 +73,46 @@ namespace gombaszedés
             if (sender is not Button btn) return;
             int pos = (int)btn.Tag;
 
-            // If there is no active game
             if (_sequence.Count == 0)
             {
                 await ShowResultAsync(false);
                 return;
             }
 
-            // Is clicked pos a mushroom?
             if (!_posToIndex.TryGetValue(pos, out int idx))
             {
-                // not a mushroom
                 await ShowResultAsync(false);
                 return;
             }
 
             if (idx != _currentIndex)
             {
-                // wrong mushroom in sequence
                 await ShowResultAsync(false);
                 return;
             }
 
-            // correct
-            // replace the image on that button with a smile image (and remove mapping)
-            btn.Content = new Image { Source = _smileImg, Stretch = System.Windows.Media.Stretch.Uniform };
+            if (_bastyaPos >= 0)
+            {
+                try
+                {
+                    var prev = GetButtonAt(_bastyaPos);
+                    prev.Content = null;
+                }
+                catch { }
+            }
+
+            btn.Content = new TextBlock { Text = "♖", FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            _bastyaPos = pos;
+
             _posToIndex.Remove(pos);
             _currentIndex++;
-            StatusText.Text = $"Következő: {_currentIndex + 1} / {MushroomsCount}";
+            StatusText.Text = $"Következő: {_currentIndex} / {MushroomsCount}";
 
             await ShowResultAsync(true);
 
             if (_currentIndex >= MushroomsCount)
             {
-                StatusText.Text = "Gratulálok — minden gomba összeszedve!";
+                StatusText.Text = "Gratulálok!";
                 MessageBox.Show("Megnyerted! Minden gomba összeszedve.", "Győzelem", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
@@ -116,9 +137,7 @@ namespace gombaszedés
             _currentIndex = 0;
             ResultImage.Source = null;
 
-            string piece = (PieceCombo.SelectedItem as ComboBoxItem)?.Content as string ?? "Rook";
-
-            bool ok = TryGeneratePathForPiece(piece, out List<int> seq);
+            bool ok = TryGeneratePath(out List<int> seq);
             if (!ok)
             {
                 StatusText.Text = "Nem sikerült elhelyezni — próbáld újra.";
@@ -126,41 +145,43 @@ namespace gombaszedés
             }
 
             _sequence = seq;
+            if (_bastyaPos >= 0)
+            {
+                var rookBtn = GetButtonAt(_bastyaPos);
+                rookBtn.Content = new TextBlock { Text = "♖", FontSize = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            }
+
             for (int i = 0; i < _sequence.Count; i++)
             {
                 _posToIndex[_sequence[i]] = i;
-                // place mushroom image on that button
                 var btn = GetButtonAt(_sequence[i]);
                 btn.Content = new Image { Source = _mushroomImg, Stretch = System.Windows.Media.Stretch.Uniform };
             }
 
             _currentIndex = 0;
-            StatusText.Text = $"Kezdés: kattints a 1. gombára ({piece})";
+            StatusText.Text = "Kezdés: kattints a 1. gombára (♖)";
         }
 
         private Button GetButtonAt(int pos)
         {
-            // BoardGrid.Children order is row-major
             return (Button)BoardGrid.Children[pos];
         }
 
-        private bool TryGeneratePathForPiece(string piece, out List<int> path)
+        private bool TryGeneratePath(out List<int> mushrooms)
         {
-            path = new List<int>();
+            mushrooms = new List<int>();
             int maxAttempts = 300;
+            int targetLength = MushroomsCount + 1;
             for (int attempt = 0; attempt < maxAttempts; attempt++)
             {
-                // pick random start
                 int start = _rnd.Next(BoardSize * BoardSize);
-                path.Clear();
-                path.Add(start);
-
-                // depth-first randomized backtracking
-                if (ExtendPathRandomized(piece, path))
+                var path = new List<int> { start };
+                if (ExtendPathRandomized(path, targetLength))
                 {
-                    if (path.Count >= MushroomsCount)
+                    if (path.Count >= targetLength)
                     {
-                        path = path.Take(MushroomsCount).ToList();
+                        _bastyaPos = path[0];
+                        mushrooms = path.Skip(1).Take(MushroomsCount).ToList();
                         return true;
                     }
                 }
@@ -168,51 +189,37 @@ namespace gombaszedés
             return false;
         }
 
-        private bool ExtendPathRandomized(string piece, List<int> path)
+        private bool ExtendPathRandomized(List<int> path, int targetCount)
         {
-            // attempt to reach MushroomsCount by backtracking
             int maxSteps = 10000;
             int steps = 0;
-            return Backtrack(path, piece, ref steps, maxSteps);
+            return Backtrack(path, ref steps, maxSteps, targetCount);
         }
 
-        private bool Backtrack(List<int> path, string piece, ref int steps, int maxSteps)
+        private bool Backtrack(List<int> path, ref int steps, int maxSteps, int targetCount)
         {
             if (steps++ > maxSteps) return false;
-            if (path.Count >= MushroomsCount) return true;
+            if (path.Count >= targetCount) return true;
 
-            var moves = GetLegalMoves(piece, path.Last())
+            var moves = GetLegalMoves(path.Last())
                         .Where(p => !path.Contains(p))
                         .OrderBy(_ => _rnd.Next()).ToList();
 
-            // try each next
             foreach (var next in moves)
             {
                 path.Add(next);
-                if (Backtrack(path, piece, ref steps, maxSteps))
+                if (Backtrack(path, ref steps, maxSteps, targetCount))
                     return true;
                 path.RemoveAt(path.Count - 1);
             }
             return false;
         }
 
-        private IEnumerable<int> GetLegalMoves(string piece, int pos)
+        private IEnumerable<int> GetLegalMoves(int pos)
         {
             int r = pos / BoardSize;
             int c = pos % BoardSize;
-            switch (piece)
-            {
-                case "Rook":
-                    return GetRookMoves(r, c);
-                case "Bishop":
-                    return GetBishopMoves(r, c);
-                case "Queen":
-                    return GetQueenMoves(r, c);
-                case "Knight":
-                    return GetKnightMoves(r, c);
-                default:
-                    return Enumerable.Empty<int>();
-            }
+            return GetRookMoves(r, c);
         }
 
         private IEnumerable<int> GetRookMoves(int r, int c)
@@ -220,41 +227,6 @@ namespace gombaszedés
             var list = new List<int>();
             for (int cc = 0; cc < BoardSize; cc++) if (cc != c) list.Add(r * BoardSize + cc);
             for (int rr = 0; rr < BoardSize; rr++) if (rr != r) list.Add(rr * BoardSize + c);
-            return list;
-        }
-
-        private IEnumerable<int> GetBishopMoves(int r, int c)
-        {
-            var list = new List<int>();
-            for (int dr = -BoardSize; dr <= BoardSize; dr++)
-            {
-                if (dr == 0) continue;
-                int rr = r + dr;
-                int cc = c + dr;
-                if (InBoard(rr, cc)) list.Add(rr * BoardSize + cc);
-                rr = r + dr;
-                cc = c - dr;
-                if (InBoard(rr, cc)) list.Add(rr * BoardSize + cc);
-            }
-            return list;
-        }
-
-        private IEnumerable<int> GetQueenMoves(int r, int c)
-        {
-            return GetRookMoves(r, c).Concat(GetBishopMoves(r, c));
-        }
-
-        private IEnumerable<int> GetKnightMoves(int r, int c)
-        {
-            int[] dr = { 2, 1, -1, -2, -2, -1, 1, 2 };
-            int[] dc = { 1, 2, 2, 1, -1, -2, -2, -1 };
-            var list = new List<int>();
-            for (int i = 0; i < dr.Length; i++)
-            {
-                int rr = r + dr[i];
-                int cc = c + dc[i];
-                if (InBoard(rr, cc)) list.Add(rr * BoardSize + cc);
-            }
             return list;
         }
 

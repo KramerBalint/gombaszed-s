@@ -8,4 +8,16 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!-- Embed all images under Images\ as WPF Resources so pack://application URIs work -->
+  <ItemGroup>
+    <Resource Include="Images\**\*.*" />
+  </ItemGroup>
+
+  <!-- Also copy images to output so they can be loaded from file path if pack URI fails -->
+  <ItemGroup>
+    <Content Include="Images\**\*.*">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
